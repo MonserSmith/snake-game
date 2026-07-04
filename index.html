@@ -2,38 +2,56 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<!-- 苹果全屏模式 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- 微信 / QQ X5 内核：强制全屏模式，去除浏览器头部 -->
+<meta name="x5-fullscreen" content="true">
+<meta name="x5-page-mode" content="app">
+<meta name="x5-orientation" content="portrait">
+<meta name="browsermode" content="application">
+<meta name="full-screen" content="yes">
+<meta name="layoutmode" content="standard">
+<!-- 禁用 X5 内核的页面缓存（否则页面不刷新） -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>🐍 贪吃蛇</title>
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-  html, body {
+  html {
     width: 100%;
-    height: 100%;
     overflow: hidden;
     background: #1a1a2e;
-    font-family: 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+    /* 微信 X5 内核不支持 overscroll-behavior，用 JS 接管 touchmove */
+  }
+
+  body {
+    width: 100%;
+    background: #1a1a2e;
+    font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
     user-select: none;
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
-    touch-action: manipulation;
-    /* 阻止移动端下拉刷新 */
-    overscroll-behavior: none;
-    position: fixed;
-    inset: 0;
+    -webkit-overflow-scrolling: auto;
+    overflow: hidden;
+    /* 页面高度由 JS 动态设置，不用 100vh（微信里 100vh 不对）*/
   }
 
-  .game-wrapper {
+  .page {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    padding: 8px;
-    gap: 8px;
+    padding: 6px;
+    gap: 6px;
   }
 
   /* === 顶栏 === */
@@ -43,46 +61,46 @@
     align-items: center;
     width: 100%;
     max-width: 600px;
-    padding: 0 8px;
+    padding: 0 6px;
+    flex-shrink: 0;
   }
 
   .title {
     color: #a0d8a0;
-    font-size: clamp(18px, 4vw, 26px);
+    font-size: 22px;
     font-weight: 700;
     white-space: nowrap;
   }
 
   .score-panel {
     display: flex;
-    gap: 10px;
+    gap: 8px;
   }
 
   .score-box {
     background: #16213e;
     border: 1px solid #2a3a5e;
     border-radius: 8px;
-    padding: 4px 12px;
+    padding: 3px 10px;
     text-align: center;
-    min-width: 56px;
+    min-width: 50px;
   }
 
   .score-label {
     color: #8899aa;
     font-size: 10px;
-    text-transform: uppercase;
     letter-spacing: 1px;
   }
 
   .score-value {
     color: #fff;
-    font-size: clamp(16px, 3vw, 22px);
+    font-size: 18px;
     font-weight: 700;
   }
 
   .best-value {
     color: #ffcc00;
-    font-size: clamp(16px, 3vw, 22px);
+    font-size: 18px;
     font-weight: 700;
   }
 
@@ -91,6 +109,7 @@
     position: relative;
     width: 100%;
     max-width: 600px;
+    flex-shrink: 0;
   }
 
   canvas {
@@ -100,31 +119,32 @@
     border: 2px solid #2a3a5e;
     border-radius: 6px;
     background: #0f0f1a;
-    touch-action: none;  /* 禁止浏览器手势干扰 */
+    touch-action: none;
   }
 
-  /* === 键盘提示（仅桌面端显示）=== */
+  /* === 键盘提示（桌面端）=== */
   .controls-hint {
     color: #556677;
     font-size: 12px;
     display: flex;
-    gap: 18px;
+    gap: 16px;
     flex-wrap: wrap;
     justify-content: center;
+    flex-shrink: 0;
   }
 
   .controls-hint span {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
   }
 
   .key {
     background: #16213e;
     border: 1px solid #2a3a5e;
-    border-radius: 4px;
-    padding: 1px 7px;
-    font-size: 11px;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 10px;
     color: #aabbcc;
     font-family: inherit;
   }
@@ -133,34 +153,34 @@
   .mobile-controls {
     display: none;
     width: 100%;
-    max-width: 300px;
-    padding: 0 10px;
+    max-width: 280px;
+    flex-shrink: 0;
   }
 
   .dpad {
     position: relative;
     width: 100%;
-    /* 让高度为宽度的 90%，保持十字布局比例 */
-    aspect-ratio: 1 / 0.9;
-    max-width: 220px;
+    max-width: 200px;
+    /* 不用 aspect-ratio（微信 X5 老版本不支持），用 padding-bottom 撑高度 */
+    height: 0;
+    padding-bottom: 85%;
     margin: 0 auto;
   }
 
   .dpad-btn {
     position: absolute;
-    width: 30%;
-    height: 33%;
+    width: 32%;
+    height: 35%;
     border: 2px solid #3a4a6e;
     border-radius: 12px;
     background: rgba(22, 33, 62, 0.85);
     color: #aabbcc;
-    font-size: clamp(18px, 5vw, 26px);
+    font-size: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     touch-action: manipulation;
-    transition: background 0.08s;
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -169,17 +189,17 @@
     border-color: #5a8a6e;
   }
 
-  .dpad-up    { top: 0;    left: 35%; }
-  .dpad-down  { bottom: 0; left: 35%; }
-  .dpad-left  { top: 33%;  left: 0;    }
-  .dpad-right { top: 33%;  right: 0;   }
+  .dpad-up    { top: 0;    left: 34%; }
+  .dpad-down  { bottom: 0; left: 34%; }
+  .dpad-left  { top: 32%;  left: 0;    }
+  .dpad-right { top: 32%;  right: 0;   }
 
   /* === 暂停按钮（移动端）=== */
   .pause-btn-mobile {
     display: none;
     margin-top: 4px;
-    padding: 10px 28px;
-    font-size: 15px;
+    padding: 8px 24px;
+    font-size: 14px;
     border: 1px solid #3a4a6e;
     border-radius: 20px;
     background: rgba(22, 33, 62, 0.7);
@@ -194,21 +214,27 @@
     background: rgba(40, 60, 80, 0.8);
   }
 
-  /* === 游戏结束弹层 === */
+  /* === 游戏结束弹层 ===
+     不用 position:fixed（微信 X5 的 fixed 有问题），
+     改为相对于 .page 的 absolute + JS 动态高度
+  === */
   .overlay {
     display: none;
-    position: fixed;
-    inset: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background: rgba(0, 0, 0, 0.78);
     z-index: 100;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 10px;
   }
 
   .overlay-title {
-    font-size: clamp(28px, 7vw, 40px);
+    font-size: 32px;
     font-weight: 700;
     color: #ff6464;
     text-align: center;
@@ -216,14 +242,14 @@
   }
 
   .overlay-score {
-    font-size: clamp(16px, 4vw, 22px);
+    font-size: 18px;
     color: #ccc;
   }
 
   .overlay-btn {
-    margin-top: 12px;
-    padding: 14px 44px;
-    font-size: clamp(16px, 3.5vw, 20px);
+    margin-top: 10px;
+    padding: 12px 40px;
+    font-size: 18px;
     border: none;
     border-radius: 10px;
     background: #4a8;
@@ -232,24 +258,31 @@
     letter-spacing: 2px;
     font-weight: 600;
     touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .overlay-btn:active {
     background: #3a7;
   }
 
-  /* === 响应式：移动端显示方向键，隐藏键盘提示 === */
+  /* === 响应式 === */
   @media (max-width: 640px), (hover: none) and (pointer: coarse) {
     .mobile-controls  { display: block; }
     .pause-btn-mobile { display: block; }
     .controls-hint    { display: none; }
-    .game-wrapper     { gap: 4px; padding: 4px; }
+    .page             { gap: 4px; padding: 4px; }
+    .title            { font-size: 18px; }
+    .score-value,
+    .best-value       { font-size: 16px; }
+    .overlay-title    { font-size: 28px; }
+    .overlay-score    { font-size: 16px; }
+    .overlay-btn      { font-size: 16px; padding: 10px 36px; }
   }
 </style>
 </head>
 <body>
 
-<div class="game-wrapper">
+<div class="page" id="page">
   <!-- 顶栏 -->
   <div class="header">
     <div class="title">🐍 贪吃蛇</div>
@@ -272,7 +305,7 @@
 
   <!-- 键盘提示（桌面端） -->
   <div class="controls-hint">
-    <span><span class="key">↑↓←→</span> 或 <span class="key">WASD</span> 移动</span>
+    <span><span class="key">&#8593;&#8595;&#8592;&#8594;</span> 或 <span class="key">WASD</span> 移动</span>
     <span><span class="key">空格</span> 暂停</span>
     <span><span class="key">R</span> 重新开始</span>
   </div>
@@ -289,69 +322,99 @@
       <button class="pause-btn-mobile" id="btnPause">⏯ 暂停</button>
     </div>
   </div>
-</div>
 
-<!-- 游戏结束弹层 -->
-<div class="overlay" id="overlay">
-  <div class="overlay-title" id="overlayTitle">游戏结束</div>
-  <div class="overlay-score" id="overlayScore"></div>
-  <button class="overlay-btn" id="overlayBtn">🔄 再来一局</button>
+  <!-- 游戏结束弹层（相对于 page，非 fixed） -->
+  <div class="overlay" id="overlay">
+    <div class="overlay-title" id="overlayTitle">游戏结束</div>
+    <div class="overlay-score" id="overlayScore"></div>
+    <button class="overlay-btn" id="overlayBtn">🔄 再来一局</button>
+  </div>
 </div>
 
 <script>
 (function() {
-  // === 游戏常量 ===
-  const COLS = 30;
-  const ROWS = 20;
-  const BASE_CELL = 20;  // 基准格子尺寸
-  const FPS = 10;
+  // ========================================================
+  // 微信 / X5 适配核心
+  // ========================================================
 
-  // === DOM 元素 ===
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d');
-  const scoreEl = document.getElementById('score');
-  const bestEl = document.getElementById('bestScore');
-  const overlay = document.getElementById('overlay');
-  const overlayTitle = document.getElementById('overlayTitle');
-  const overlayScore = document.getElementById('overlayScore');
-  const btnPause = document.getElementById('btnPause');
-
-  // === 缩放相关 ===
-  let cellSize = BASE_CELL;  // 当前实际使用的格子尺寸（像素）
-
-  function resizeCanvas() {
-    const container = canvas.parentElement;
-    const availW = container.clientWidth;
-    // 根据可用宽度计算实际格子大小
-    cellSize = Math.floor(availW / COLS);
-    // 确保格子至少 12px，否则画布质量太差
-    if (cellSize < 12) cellSize = 12;
-    if (cellSize > BASE_CELL) cellSize = BASE_CELL;
-
-    canvas.width = cellSize * COLS;
-    canvas.height = cellSize * ROWS;
+  // 1. 动态设置页面高度（微信里 100vh ≠ 可视高度）
+  function fixViewportHeight() {
+    // visualViewport 在较新微信中可用，精确反映可视区域
+    var h;
+    if (window.visualViewport && window.visualViewport.height) {
+      h = window.visualViewport.height;
+    } else {
+      h = window.innerHeight || document.documentElement.clientHeight;
+    }
+    document.body.style.height = h + 'px';
+    var page = document.getElementById('page');
+    if (page) page.style.height = h + 'px';
   }
 
-  window.addEventListener('resize', resizeCanvas);
+  fixViewportHeight();
+  window.addEventListener('resize', fixViewportHeight);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', fixViewportHeight);
+    window.visualViewport.addEventListener('scroll', fixViewportHeight);
+  }
+  // 微信的 orientation change 可能不触发 resize
   window.addEventListener('orientationchange', function() {
-    // orientation 变化后稍等一下让布局更新
+    setTimeout(fixViewportHeight, 100);
+    setTimeout(fixViewportHeight, 400);
     setTimeout(resizeCanvas, 200);
+    setTimeout(resizeCanvas, 500);
   });
 
-  resizeCanvas();
+  // 2. 全局阻止页面滚动/下拉/回弹（微信 X5 最关键的修复）
+  document.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+  }, { passive: false });
 
-  // === 游戏状态 ===
-  let snake, food, direction, nextDirection;
-  let score, bestScore, gameOver, paused, gameLoop;
-  let animFrameId = null;
-  let lastTick = 0;
-  let tickInterval = 1000 / FPS;
+  // 阻止微信长按弹出菜单
+  document.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+  });
 
-  // 从 localStorage 读取最高分
-  bestScore = parseInt(localStorage.getItem('snakeBest_v2') || '0');
+  // 阻止微信双击放大
+  document.addEventListener('dblclick', function(e) {
+    e.preventDefault();
+  });
+
+  // ========================================================
+  // 游戏逻辑
+  // ========================================================
+
+  var COLS = 30;
+  var ROWS = 20;
+  var BASE_CELL = 20;
+  var FPS = 10;
+
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var scoreEl = document.getElementById('score');
+  var bestEl = document.getElementById('bestScore');
+  var overlay = document.getElementById('overlay');
+  var overlayTitle = document.getElementById('overlayTitle');
+  var overlayScore = document.getElementById('overlayScore');
+  var btnPause = document.getElementById('btnPause');
+
+  var cellSize = BASE_CELL;
+  var snake, food, direction, nextDirection;
+  var score, bestScore, gameOver, paused;
+  var animFrameId = null;
+  var lastTick = 0;
+  var tickInterval = 1000 / FPS;
+
+  // localStorage 读取（微信严格模式下可能失败，加保护）
+  try {
+    bestScore = parseInt(localStorage.getItem('snakeBest_v3') || '0');
+  } catch (e) {
+    bestScore = 0;
+  }
+  if (isNaN(bestScore)) bestScore = 0;
   bestEl.textContent = bestScore;
 
-  // === roundRect 兼容（部分旧手机浏览器不支持） ===
+  // roundRect 兼容（旧 X5 内核不支持）
   if (!ctx.roundRect) {
     ctx.roundRect = function(x, y, w, h, r) {
       if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };
@@ -369,10 +432,25 @@
     };
   }
 
-  // === 初始化 ===
+  // Canvas 缩放
+  function resizeCanvas() {
+    var container = canvas.parentElement;
+    if (!container) return;
+    var availW = container.clientWidth;
+    cellSize = Math.floor(availW / COLS);
+    if (cellSize < 10) cellSize = 10;
+    if (cellSize > BASE_CELL) cellSize = BASE_CELL;
+    canvas.width = cellSize * COLS;
+    canvas.height = cellSize * ROWS;
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  // 初始化
   function init() {
-    const sx = Math.floor(COLS / 2);
-    const sy = Math.floor(ROWS / 2);
+    var sx = Math.floor(COLS / 2);
+    var sy = Math.floor(ROWS / 2);
     snake = [
       { x: sx, y: sy },
       { x: sx - 1, y: sy },
@@ -385,16 +463,19 @@
     paused = false;
     scoreEl.textContent = '0';
     overlay.style.display = 'none';
-    btnPause.textContent = '⏯ 暂停';
+    if (btnPause) btnPause.textContent = '⏯ 暂停';
     spawnFood();
   }
 
   function spawnFood() {
-    const occupied = new Set(snake.map(p => p.x + ',' + p.y));
-    const available = [];
-    for (let x = 0; x < COLS; x++) {
-      for (let y = 0; y < ROWS; y++) {
-        if (!occupied.has(x + ',' + y)) available.push({ x, y });
+    var occupied = {};
+    for (var i = 0; i < snake.length; i++) {
+      occupied[snake[i].x + ',' + snake[i].y] = true;
+    }
+    var available = [];
+    for (var x = 0; x < COLS; x++) {
+      for (var y = 0; y < ROWS; y++) {
+        if (!occupied[x + ',' + y]) available.push({ x: x, y: y });
       }
     }
     if (available.length === 0) {
@@ -409,7 +490,9 @@
     gameOver = true;
     if (score > bestScore) {
       bestScore = score;
-      localStorage.setItem('snakeBest_v2', bestScore);
+      try {
+        localStorage.setItem('snakeBest_v3', bestScore);
+      } catch (e) {}
       bestEl.textContent = bestScore;
     }
     overlay.style.display = 'flex';
@@ -421,11 +504,12 @@
       overlayTitle.style.color = '#ff6464';
     }
     overlayScore.textContent = '最终分数: ' + score;
-    btnPause.textContent = '⏯ 暂停';
+    if (btnPause) btnPause.textContent = '⏯ 暂停';
     cancelAnimationFrame(animFrameId);
+    animFrameId = null;
   }
 
-  // === 游戏逻辑 ===
+  // 逻辑更新
   function update() {
     if (gameOver || paused) return;
 
@@ -447,7 +531,6 @@
 
     snake.unshift(head);
 
-    // 吃到食物
     if (food && head.x === food.x && head.y === food.y) {
       score += 10;
       scoreEl.textContent = score;
@@ -457,35 +540,37 @@
     }
   }
 
-  // === 绘制 ===
+  // 绘制
   function draw() {
-    var W = canvas.width, H = canvas.height;
+    var W = canvas.width;
+    var H = canvas.height;
     var cs = cellSize;
 
-    // 背景
     ctx.fillStyle = '#0f0f1a';
     ctx.fillRect(0, 0, W, H);
 
-    // 网格线
+    // 网格
     ctx.strokeStyle = '#1a1a30';
     ctx.lineWidth = 0.5;
-    var x, y;
-    for (x = 0; x <= W; x += cs) {
-      ctx.beginPath(); ctx.moveTo(Math.floor(x) + 0.5, 0);
-      ctx.lineTo(Math.floor(x) + 0.5, H); ctx.stroke();
+    for (var x = 0; x <= W; x += cs) {
+      ctx.beginPath();
+      ctx.moveTo(Math.floor(x) + 0.5, 0);
+      ctx.lineTo(Math.floor(x) + 0.5, H);
+      ctx.stroke();
     }
-    for (y = 0; y <= H; y += cs) {
-      ctx.beginPath(); ctx.moveTo(0, Math.floor(y) + 0.5);
-      ctx.lineTo(W, Math.floor(y) + 0.5); ctx.stroke();
+    for (var y = 0; y <= H; y += cs) {
+      ctx.beginPath();
+      ctx.moveTo(0, Math.floor(y) + 0.5);
+      ctx.lineTo(W, Math.floor(y) + 0.5);
+      ctx.stroke();
     }
 
     // 蛇身
-    var i, p, px, py, pad;
-    for (i = 0; i < snake.length; i++) {
-      p = snake[i];
-      px = p.x * cs;
-      py = p.y * cs;
-      pad = Math.max(1, cs * 0.08);
+    for (var i = 0; i < snake.length; i++) {
+      var p = snake[i];
+      var px = p.x * cs;
+      var py = p.y * cs;
+      var pad = Math.max(1, cs * 0.08);
 
       ctx.fillStyle = (i === 0) ? '#64c864' : '#3ca03c';
       ctx.beginPath();
@@ -493,17 +578,25 @@
       ctx.fill();
 
       // 蛇头眼睛
-      if (i === 0 && cs >= 10) {
+      if (i === 0 && cs >= 8) {
         ctx.fillStyle = '#fff';
         var ex = px + cs / 2;
         var ey = py + cs / 2;
         var odx = direction.x * (cs * 0.15);
         var ody = direction.y * (cs * 0.15);
-        var eyeR = Math.max(1.2, cs * 0.12);
+        var eyeR = Math.max(1, cs * 0.12);
         var eyeOff = Math.max(1, cs * 0.1);
         ctx.beginPath();
-        ctx.arc(ex + odx - eyeOff * Math.abs(direction.y), ey + ody - eyeOff * Math.abs(direction.x), eyeR, 0, Math.PI * 2);
-        ctx.arc(ex + odx + eyeOff * Math.abs(direction.y), ey + ody + eyeOff * Math.abs(direction.x), eyeR, 0, Math.PI * 2);
+        ctx.arc(
+          ex + odx - eyeOff * Math.abs(direction.y),
+          ey + ody - eyeOff * Math.abs(direction.x),
+          eyeR, 0, Math.PI * 2
+        );
+        ctx.arc(
+          ex + odx + eyeOff * Math.abs(direction.y),
+          ey + ody + eyeOff * Math.abs(direction.x),
+          eyeR, 0, Math.PI * 2
+        );
         ctx.fill();
       }
     }
@@ -515,13 +608,11 @@
       var pulse = 1 + 0.12 * Math.sin(Date.now() / 150);
       var r = (cs / 2 - Math.max(1.5, cs * 0.1)) * pulse;
 
-      // 光晕
       ctx.fillStyle = 'rgba(255,80,80,0.2)';
       ctx.beginPath();
       ctx.arc(fx, fy, r + 2.5, 0, Math.PI * 2);
       ctx.fill();
 
-      // 主体
       ctx.fillStyle = '#ff5050';
       ctx.beginPath();
       ctx.arc(fx, fy, r, 0, Math.PI * 2);
@@ -533,7 +624,7 @@
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
       ctx.fillRect(0, 0, W, H);
       ctx.fillStyle = '#ddd';
-      var fontSize = Math.max(16, cs * 1.5);
+      var fontSize = Math.max(14, cs * 1.4);
       ctx.font = 'bold ' + fontSize + 'px "PingFang SC","Microsoft YaHei",sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -543,7 +634,7 @@
     }
   }
 
-  // === 游戏循环：使用 requestAnimationFrame 做节流 ===
+  // 游戏循环
   function gameTick(timestamp) {
     if (gameOver) { animFrameId = null; return; }
 
@@ -551,7 +642,6 @@
     var elapsed = timestamp - lastTick;
 
     if (elapsed >= tickInterval) {
-      // 跳过太多帧时只执行一步（防止 tab 切到后台回来后蛇瞬移）
       lastTick = timestamp - (elapsed % tickInterval);
       update();
     }
@@ -569,20 +659,18 @@
   // === 输入处理 ===
   function setDir(dx, dy) {
     if (gameOver) return;
-    // 禁止反向
     if (dx === -direction.x && dy === -direction.y) return;
     nextDirection = { x: dx, y: dy };
-    // 暂停中按键自动解除暂停
     if (paused) {
       paused = false;
-      btnPause.textContent = '⏯ 暂停';
+      if (btnPause) btnPause.textContent = '⏯ 暂停';
     }
   }
 
   function togglePause() {
     if (gameOver) return;
     paused = !paused;
-    btnPause.textContent = paused ? '▶ 继续' : '⏯ 暂停';
+    if (btnPause) btnPause.textContent = paused ? '▶ 继续' : '⏯ 暂停';
   }
 
   // === 事件绑定 ===
@@ -593,7 +681,6 @@
       if (e.key === 'r' || e.key === 'R') { init(); startLoop(); }
       return;
     }
-
     switch (e.key) {
       case 'ArrowUp':    case 'w': case 'W': e.preventDefault(); setDir(0, -1); break;
       case 'ArrowDown':  case 's': case 'S': e.preventDefault(); setDir(0, 1);  break;
@@ -613,42 +700,44 @@
 
   Object.keys(dirMap).forEach(function(id) {
     var btn = document.getElementById(id);
+    if (!btn) return;
     var dir = dirMap[id];
 
-    btn.addEventListener('pointerdown', function(e) {
+    function handleBtn(e) {
       e.preventDefault();
       e.stopPropagation();
       setDir(dir[0], dir[1]);
-    });
+    }
 
-    // 阻止 touchstart 的默认行为（防止触发页面滚动）
-    btn.addEventListener('touchstart', function(e) {
+    btn.addEventListener('touchstart', handleBtn, { passive: false });
+    btn.addEventListener('pointerdown', handleBtn);
+    // 防止微信长按按钮出现菜单
+    btn.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+  });
+
+  // 暂停按钮
+  if (btnPause) {
+    function handlePause(e) {
       e.preventDefault();
-    });
-  });
+      e.stopPropagation();
+      togglePause();
+    }
+    btnPause.addEventListener('touchstart', handlePause, { passive: false });
+    btnPause.addEventListener('pointerdown', handlePause);
+  }
 
-  // 移动端暂停按钮
-  btnPause.addEventListener('pointerdown', function(e) {
-    e.preventDefault();
-    togglePause();
-  });
-
-  // 画布触摸滑动
+  // 画布滑动控制
   (function() {
-    var tsX = 0, tsY = 0, tsT = 0;
-    var SWIPE_MIN = 25;  // 最小滑动距离
+    var tsX = 0, tsY = 0;
+    var SWIPE_MIN = 20;
 
     canvas.addEventListener('touchstart', function(e) {
       if (e.touches.length === 1) {
         tsX = e.touches[0].clientX;
         tsY = e.touches[0].clientY;
-        tsT = Date.now();
       }
       e.preventDefault();
-    }, { passive: false });
-
-    canvas.addEventListener('touchmove', function(e) {
-      e.preventDefault();  // 阻止页面滚动
+      e.stopPropagation();
     }, { passive: false });
 
     canvas.addEventListener('touchend', function(e) {
@@ -664,39 +753,46 @@
       }
     });
 
-    // 桌面端也支持鼠标拖拽（方便调试）
-    var mouseDown = false, mx = 0, my = 0;
-    canvas.addEventListener('mousedown', function(e) {
-      mouseDown = true; mx = e.clientX; my = e.clientY;
-    });
-    canvas.addEventListener('mouseup', function(e) {
-      if (!mouseDown) return;
-      mouseDown = false;
-      var dx = e.clientX - mx;
-      var dy = e.clientY - my;
-      var absDx = Math.abs(dx), absDy = Math.abs(dy);
-      if (Math.max(absDx, absDy) < 15) return;
-      if (absDx > absDy) {
-        setDir(dx > 0 ? 1 : -1, 0);
-      } else {
-        setDir(0, dy > 0 ? 1 : -1);
-      }
-    });
+    // 桌面拖拽
+    (function() {
+      var mDown = false, mx = 0, my = 0;
+      canvas.addEventListener('mousedown', function(e) {
+        mDown = true; mx = e.clientX; my = e.clientY;
+      });
+      document.addEventListener('mouseup', function(e) {
+        if (!mDown) return;
+        mDown = false;
+        var dx = e.clientX - mx;
+        var dy = e.clientY - my;
+        var absDx = Math.abs(dx), absDy = Math.abs(dy);
+        if (Math.max(absDx, absDy) < 12) return;
+        if (absDx > absDy) {
+          setDir(dx > 0 ? 1 : -1, 0);
+        } else {
+          setDir(0, dy > 0 ? 1 : -1);
+        }
+      });
+    })();
   })();
 
-  // 游戏结束弹层按钮
+  // 弹层按钮
   (function() {
     var restarting = false;
     var overlayBtn = document.getElementById('overlayBtn');
-    overlayBtn.addEventListener('pointerdown', function(e) {
+    if (!overlayBtn) return;
+
+    function doRestart(e) {
       e.preventDefault();
+      e.stopPropagation();
       if (restarting) return;
       restarting = true;
       init();
       startLoop();
-      // 防止连续快速点击
       setTimeout(function() { restarting = false; }, 300);
-    });
+    }
+
+    overlayBtn.addEventListener('touchstart', doRestart, { passive: false });
+    overlayBtn.addEventListener('pointerdown', doRestart);
   })();
 
   // === 启动 ===
